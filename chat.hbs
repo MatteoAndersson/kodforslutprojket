@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" type="text/css" href="styles.css">
+</head>
+<body>
+    <input id="searchbar" onkeyup="search_question()" type="text" name="search" placeholder="Sök på frågor">
+    <div id="chat-box">
+        <form id="message-form" action="/meddelanden" method="POST">
+            <input type="hidden" id="user-id" name="userID" value="1">
+            
+            <input type="text" id="message-input" name="content" placeholder="skriv din fråga">
+            
+            
+            <button type="submit">Send</button>
+        </form>
+    </div>
+    <h1 id="name"></h1>
+    <h1>Chat</h1>
+    <div id="message-container"></div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
+    <script>
+        // lägger in användarnamnet i en h1 tag
+        document.addEventListener('DOMContentLoaded', () => {
+            const userName = '{{name}}'; // {{name}} är variabeln från servern
+            document.getElementById('name').textContent = "Konto: " + userName;
+        });
+        let socket = io();
+        let messages = [];
+        $(() => {
+        // Submit form event listener för att skicka frågor
+            $("#message-form").submit((event) => {
+                event.preventDefault();
+                let message = {
+                    content: $("#message-input").val()//content får man från input valuen
+                };
+                postMessages(message);
+                $("#message-input").val("");
+            });
+            getMessages;
+        });
+        
+        socket.on("newMessage", (message) => {
+        // lägg till nya meddelandet
+        console.log("iomedelande")
+        console.log(message)
+        addMessages(message);
+        });
+        
+
+        // Funktion för att lägga till meddelanden i sidan
+        function addMessages(message){
+            console.log("addmessages")
+            console.log(message.userID)
+            console.log(message.content)
+            let messageDiv = $(`
+                <div class="message">
+                    <h4>${message.name}</h4>
+                    <p>${message.content}</p>
+                    <small>${message.timestamp}</small>
+                    <div class="comment-section">
+                        <div class="comments-container">
+                            <!-- Comments läggs till här -->
+                        </div>
+                        <input type="text" class="comment-input" placeholder="Lägg till kommentar">
+                        <button class="comment-button">Send</button>
+                    </div>
+                </div>
+            `);
+
+            // hämta och visa eventuella kommentarer för frågan
+            console.log("34")
+            console.log(message.QuestionID);
+            getComments(message.QuestionID, messageDiv.find('.comments-container'));
+
+            // lägger till evnetlistener i comment button
+            messageDiv.find('.comment-button').on('click', function() {
+                const commentInput = $(this).siblings('.comment-input');
+                const commentContent = commentInput.val();
+                if (commentContent.trim()) {
+                    console.log("001")
+                    postComment(message.QuestionID, commentContent, messageDiv.find('.comments-container'));
+                    commentInput.val('');
+                }
+            });
+
+
+            $("#message-container").append(messageDiv);
+            console.log("2");
+        }
+        
+        //lägger till kommentarer
+
+        function postComment(QuestionID, contents, commentsContainer) {
+            console.log("002")
+            $.post("/comments", { QuestionID, contents }, (response) => {
+                if (response.message === 'Comment lades till') {
+                    const comment = response.comment;
+                    //commentscontainer är i detta fall kommentarsektionen för frågan som blev kommenterad på
+                    commentsContainer.append(`
+                <div class="comment">
+                    <h4>${comment.name}</h4> 
+                    <p>${comment.contents}</p>
+                    <small>${comment.timestamp}</small>
+                </div>
+            `);
+                    console.log("reload")
+                    location.reload();
+                }
+            });
+        }
+
+        function getComments(QuestionID, commentsContainer) {
+            $.get(`/comments/${QuestionID}`, (comments) => {
+                commentsContainer.empty();
+                comments.forEach(comment => {
+                    console.log("lägger till comment");
+                    console.log("122")
+                    console.log(comment.name)
+                    commentsContainer.append(`
+                <div class="comment">
+                    <h4>${comment.name}</h4>
+                    <p>${comment.contents}</p>
+                    <small>${comment.timestamp}</small>
+                </div>
+                    `);
+                });
+            });
+        }
+
+        // funktion för att få meddelanden från servern
+        function getMessages(){
+            console.log("getmessages")
+            $.get("http://localhost:4000/meddelanden", (data) => {
+                messages = data;
+                $("#message-container").empty();
+                data.forEach(message => {
+                    addMessages(message);//lägger till alla meddelanden
+                });
+            });
+        }
+
+        // Function to post messages to the server
+        function postMessages(message){
+            console.log("postmessages")
+            $.post("http://localhost:4000/meddelanden", message, () => {
+               getMessages(); 
+            });
+            
+        }
+
+        
+
+        // tidigare meddelanden i början poppar upp
+        getMessages();
+
+        function search_question() {
+            let input = document.getElementById('searchbar').value.toLowerCase();
+            let filteredMessages = messages.filter(message => 
+            message.content.toLowerCase().includes(input)
+            );
+            $("#message-container").empty();
+            filteredMessages.forEach(message => {
+                addMessages(message);
+            });
+        }
+        
+    </script>
+</body>
+</html>
